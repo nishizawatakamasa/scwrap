@@ -1,0 +1,15 @@
+[project]
+name = "scwrap"
+version = "0.1.0"
+description = "Lightweight scraping helpers: wrapped Page/parser APIs (Patchright, Playwright, selectolax), browser presets, CSV/Parquet and logging utilities."
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "patchright>=1.40",
+    "playwright>=1.40",
+    "selectolax>=0.3",
+    "pandas>=2.0",
+    "pyarrow>=14.0",
+    "camoufox>=0.4",
+    "loguru>=0.7",
+]
