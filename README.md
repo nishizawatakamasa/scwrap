@@ -64,7 +64,7 @@ uv run camoufox fetch
 
 ### `scwrap`（ラッパー）
 
-ブラウザ側は `wrap_page(page)` が起点です。`goto`・`wait`・`css` などはこの戻り値に対して呼びます。要素が複数なら `css(...)` はグループを返し、先頭だけなら `.first`、正規表現で絞り込みは `.grep(pattern)`、相対 URL の解決には `.urls`（単一は `.url`）を使います。テキストや生の要素は `.text` / `.raw` プロパティです。
+ブラウザ側は `wrap_page(page)` が起点です。`goto`・`wait`・`css` などはこの戻り値に対して呼びます。`goto` は失敗時に最大 `try_cnt` 回まで再試行し、試行間は `wait_range`（秒の乱数範囲）で待ちます。成功したあとは既定で `sleep_after`（秒の乱数範囲、デフォルト `(1, 2)`）で待機します。待機を無効にする場合は `sleep_after=None` を渡してください。要素が複数なら `css(...)` はグループを返し、先頭だけなら `.first`、正規表現で絞り込みは `.grep(pattern)`、相対 URL の解決には `.urls`（単一は `.url`）を使います。テキストや生の要素は `.text` / `.raw` プロパティです。
 
 静的 HTML（selectolax）側は `wrap_parser(parser)` から `css` / `grep` / `text` など（ノードは `wrap_node` 系）。クラス実装は非公開で、**コンストラクトは常にこれらのファクトリー経由**にしてください。
 
@@ -88,7 +88,7 @@ uv run camoufox fetch
 ```python
 from scwrap import wrap_page
 from scwrap.browser import patchright_page
-from scwrap.utils import log_to_file, append_csv, from_here, random_sleep
+from scwrap.utils import log_to_file, append_csv, from_here
 
 fh = from_here(__file__)
 log_to_file(fh('log/scraping.log'))
@@ -102,16 +102,14 @@ with patchright_page() as page:
     classroom_urls = []
     for i, url in enumerate(pref_urls, 1):
         print(f'pref_urls {i}/{len(pref_urls)}')
-        if not url or not p.goto(url):
+        if not p.goto(url):
             continue
-        random_sleep(1, 2)
         classroom_urls.extend(p.css('.school-area h4 a').urls)
 
     for i, url in enumerate(classroom_urls, 1):
         print(f'classroom_urls {i}/{len(classroom_urls)}')
         if not p.goto(url):
             continue
-        random_sleep(1, 2)
         append_csv(fh('csv/out.csv'), {
             'URL': page.url,
             '教室名': p.css('h1 .text01').first.text,
@@ -126,7 +124,7 @@ with patchright_page() as page:
 ```python
 from scwrap import wrap_page
 from scwrap.browser import camoufox_page
-from scwrap.utils import log_to_file, append_csv, from_here, hash_name, random_sleep, save_html
+from scwrap.utils import log_to_file, append_csv, from_here, hash_name, save_html
 
 fh = from_here(__file__)
 log_to_file(fh('log/scraping.log'))
@@ -142,7 +140,6 @@ with camoufox_page() as page:
         print(f"アイテムURLs {i}/{len(ctx['アイテムURLs'])}")
         if not p.goto(url):
             continue
-        random_sleep(1, 2)
         if p.wait('#logo', timeout=10000).raw is None:
             continue
         file_name = f'{hash_name(url)}.html'

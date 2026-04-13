@@ -47,12 +47,20 @@ class _WrappedPage(_PageScoped):
         elems = self._page.query_selector_all(selector)
         return self.wrap_element_group([self.wrap_element(e) for e in elems])
 
-    def goto(self, url: str | None, try_cnt: int = 3, wait_range: tuple[float, float] = (3, 5)) -> bool:
+    def goto(
+        self,
+        url: str | None,
+        try_cnt: int = 3,
+        wait_range: tuple[float, float] = (3, 5),
+        sleep_after: tuple[float, float] | None = (1, 2),
+    ) -> bool:
         if not url:
             return False
         for i in range(try_cnt):
             try:
                 if self._page.goto(url) is not None:
+                    if sleep_after is not None:
+                        time.sleep(random.uniform(*sleep_after))
                     return True
                 else:
                     reason = "response is None"
