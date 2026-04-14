@@ -140,14 +140,12 @@ with camoufox_page() as page:
         print(f"アイテムURLs {i}/{len(ctx['アイテムURLs'])}")
         if not p.goto(url):
             continue
-        if p.wait('#logo', timeout=10000).raw is None:
-            continue
         file_name = f'{hash_name(url)}.html'
         if not save_html(fh('html') / file_name, page.content()):
             continue
         append_csv(fh('outurlhtml.csv'), {
-            'URL': url,
-            'HTML': file_name,
+            'url': url,
+            'file_name': file_name,
         })
 ```
 
@@ -164,9 +162,9 @@ log_to_file(fh('log/scraping.log'))
 
 df = pd.read_csv(fh('outurlhtml.csv'))
 results = []
-for i, (url, path) in enumerate(zip(df['URL'], df['HTML']), 1):
+for i, (url, file_name) in enumerate(zip(df['url'], df['file_name']), 1):
     print(f'outhtml {i}/{len(df)}')
-    if not (parser := parse_html(fh('html') / path)):
+    if not (parser := parse_html(fh('html') / file_name)):
         continue
     p = wrap_parser(parser)
     results.append({
