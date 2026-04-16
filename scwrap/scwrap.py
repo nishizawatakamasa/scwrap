@@ -72,9 +72,9 @@ class _WrappedPage(_PageScoped):
         logger.error(f"[goto] giving up: {url}")
         return False
 
-    def wait(self, selector: str, timeout: int = 15000) -> _WrappedElement:
+    def wait(self, selector: str, state: str = "attached", timeout: int = 15000) -> _WrappedElement:
         try:
-            elem = self._page.wait_for_selector(selector, timeout=timeout)
+            elem = self._page.wait_for_selector(selector, state=state, timeout=timeout)
             return self.wrap_element(elem)
         except Exception as e:
             logger.warning(f"[wait] {type(e).__name__}: {e} | selector={selector!r} | url={self._page.url}")
