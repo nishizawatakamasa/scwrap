@@ -9,6 +9,10 @@ from loguru import logger
 from selectolax.lexbor import LexborHTMLParser
 
 
+def _ensure_parent(path: Path) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+
+
 def parse_html(path: Path | str) -> LexborHTMLParser | None:
     try:
         return LexborHTMLParser(Path(path).read_text(encoding='utf-8'))
@@ -23,6 +27,7 @@ def from_here(file: str) -> Callable[[str], Path]:
 def append_csv(path: Path | str, row: dict) -> None:
     p = Path(path)
     try:
+        _ensure_parent(p)
         pd.DataFrame([row]).to_csv(
             p,
             mode='a',
@@ -34,9 +39,11 @@ def append_csv(path: Path | str, row: dict) -> None:
         logger.error(f"[append_csv] {path} {row} {type(e).__name__}: {e}")
 
 def write_parquet(path: Path | str, rows: list[dict]) -> None:
+    p = Path(path)
     try:
+        _ensure_parent(p)
         pd.DataFrame(rows).to_parquet(
-            Path(path),
+            p,
             index=False,
         )
     except Exception as e:
@@ -47,7 +54,7 @@ def hash_name(key: str) -> str:
 
 def save_html(filepath: Path, html: str) -> bool:
     try:
-        filepath.parent.mkdir(parents=True, exist_ok=True)
+        _ensure_parent(filepath)
         filepath.write_text(html, encoding="utf-8", errors="replace")
         return True
     except Exception as e:
@@ -55,4 +62,6 @@ def save_html(filepath: Path, html: str) -> bool:
         return False
 
 def log_to_file(path: Path | str) -> None:
-    logger.add(Path(path), level="WARNING", encoding="utf-8")
+    p = Path(path)
+    _ensure_parent(p)
+    logger.add(p, level="WARNING", encoding="utf-8")

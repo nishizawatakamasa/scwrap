@@ -118,24 +118,24 @@ class _WrappedElement(_PageScoped):
     def text(self) -> str | None:
         if self._elem is None:
             return None
-        if not (text := self._elem.text_content()):
-            return None
-        if not (t := text.strip()):
-            return None
-        return t
-        
+        return text if (text := self._elem.text_content()) else None
+
     def attr(self, attr_name: str) -> str | None:
         if self._elem is None:
             return None
-        return a.strip() if (a := self._elem.get_attribute(attr_name)) else None
+        return attr if (attr := self._elem.get_attribute(attr_name)) else None
 
     @property
     def url(self) -> str | None:
-        if not (href := self.attr('href')):
+        if self._elem is None:
             return None
-        if re.search(r'(?i)^(?:#|javascript:|mailto:|tel:|data:)', href):
+        if not (href := self._elem.get_attribute('href')):
             return None
-        return urljoin(self._page.url, href)
+        if not (h := href.strip()):
+            return None
+        if re.search(r'(?i)^(?:#|javascript:|mailto:|tel:|data:)', h):
+            return None
+        return urljoin(self._page.url, h)
 
 class _WrappedElementGroup(_PageScoped):
     def __init__(self, page: Page, elems: list[_WrappedElement]) -> None:
@@ -204,12 +204,12 @@ class _WrappedNode:
     def text(self) -> str | None:
         if self._node is None:
             return None
-        return t if (t := self._node.text(strip=True)) else None
+        return text if (text := self._node.text()) else None
 
     def attr(self, attr_name: str) -> str | None:
         if self._node is None:
             return None
-        return a.strip() if (a := self._node.attributes.get(attr_name)) else None
+        return attr if (attr := self._node.attributes.get(attr_name)) else None
 
 class _WrappedNodeGroup:
     def __init__(self, nodes: list[_WrappedNode]) -> None:
@@ -237,4 +237,3 @@ class _WrappedNodeGroup:
 
     def attrs(self, attr_name: str) -> list[str | None]:
         return [n.attr(attr_name) for n in self._nodes]
-
