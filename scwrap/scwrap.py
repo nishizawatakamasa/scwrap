@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import html
 import random
 import re
 import time
@@ -79,6 +80,13 @@ class _WrappedPage(_PageScoped):
         except Exception as e:
             logger.warning(f"[wait] {type(e).__name__}: {e} | selector={selector!r} | url={self._page.url}")
             return self.wrap_element(None)
+    
+    def html(self, with_url: bool = False) -> str:
+        content = self._page.content()
+        if not with_url:
+            return content
+        meta = f'<meta name="scwrap:url" content="{html.escape(self._page.url)}">'
+        return meta + content
 
 
 class _WrappedElement(_PageScoped):

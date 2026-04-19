@@ -95,22 +95,32 @@ log_to_file(fh('log/scraping.log'))
 
 with patchright_page() as page:
     p = wrap_page(page)
-    p.goto('https://www.foobarbaz1.jp')
 
+    p.goto('https://www.foobarbaz1.jp')
     pref_urls = p.css('li.item > ul > li > a').urls
 
     classroom_urls = []
     for i, url in enumerate(pref_urls, 1):
         print(f'pref_urls {i}/{len(pref_urls)}')
         if not p.goto(url):
+            append_csv(fh('csv/failed.csv'), {
+                'url': url,
+                'type': 'pref_url',
+                'reason': 'goto'
+            })
             continue
         classroom_urls.extend(p.css('.school-area h4 a').urls)
 
     for i, url in enumerate(classroom_urls, 1):
         print(f'classroom_urls {i}/{len(classroom_urls)}')
         if not p.goto(url):
+            append_csv(fh('csv/failed.csv'), {
+                'url': url,
+                'type':'classroom_url',
+                'reason': 'goto'
+            })
             continue
-        append_csv(fh('csv/out.csv'), {
+        append_csv(fh('csv/scrape.csv'), {
             'URL': page.url,
             '教室名': p.css('h1 .text01').first.text,
             '住所': p.css('.item .mapText').first.text,
@@ -130,50 +140,46 @@ fh = from_here(__file__)
 log_to_file(fh('log/scraping.log'))
 
 with camoufox_page() as page:
-    ctx = {}
     p = wrap_page(page)
+
     p.goto('https://www.foobarbaz1.jp')
+    item_urls = p.css('ul.items > li > a').urls
 
-    ctx['アイテムURLs'] = p.css('ul.items > li > a').urls
-
-    for i, url in enumerate(ctx['アイテムURLs'], 1):
-        print(f"アイテムURLs {i}/{len(ctx['アイテムURLs'])}")
+    for i, url in enumerate(item_urls, 1):
+        print(f"item_urls {i}/{len(item_urls)}")
         if not p.goto(url):
+            append_csv(fh('csv/failed.csv'), {'url': url, 'reason': 'goto'})
             continue
         file_name = f'{hash_name(url)}.html'
-        if not save_html(fh('html') / file_name, page.content()):
+        if not save_html(fh('html') / file_name, p.html(with_url=True)):
+            append_csv(fh('csv/failed.csv'), {'url': url, 'reason': 'save_html'})
             continue
-        append_csv(fh('outurlhtml.csv'), {
-            'url': url,
-            'file_name': file_name,
-        })
 ```
 
 ## Scrape from local HTML files - 保存済みHTMLからスクレイピングしてParquetに出力する
 
 ```python
-import pandas as pd
-
 from scwrap import wrap_parser
 from scwrap.utils import log_to_file, from_here, parse_html, write_parquet
 
 fh = from_here(__file__)
 log_to_file(fh('log/scraping.log'))
 
-df = pd.read_csv(fh('outurlhtml.csv'))
 results = []
-for i, (url, file_name) in enumerate(zip(df['url'], df['file_name']), 1):
-    print(f'outhtml {i}/{len(df)}')
-    if not (parser := parse_html(fh('html') / file_name)):
+for i, file_path in enumerate(fh('html').glob('*.html')):
+    print(f'html {i}')
+    if not (parser := parse_html(file_path)):
         continue
     p = wrap_parser(parser)
+    url = p.css('meta[name="scwrap:url"]').first.attr('content')
     results.append({
         'URL': url,
+        'file_name': file_path.name,
         '教室名': p.css('h1 .text02').first.text,
         '住所': p.css('.item .mapText').first.text,
         '所在地': p.css('dt').grep(r'所在地').first.next('dd').text,
     })
-write_parquet(fh('outhtml.parquet'), results)
+write_parquet(fh('parquet/extract.parquet'), results)
 ```
 
 ## License - ライセンス
