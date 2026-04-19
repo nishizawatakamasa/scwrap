@@ -103,22 +103,14 @@ with patchright_page() as page:
     for i, url in enumerate(pref_urls, 1):
         print(f'pref_urls {i}/{len(pref_urls)}')
         if not p.goto(url):
-            append_csv(fh('csv/failed.csv'), {
-                'url': url,
-                'type': 'pref_url',
-                'reason': 'goto'
-            })
+            append_csv(fh('csv/failed.csv'), {'url': url, 'reason': 'goto'})
             continue
         classroom_urls.extend(p.css('.school-area h4 a').urls)
 
     for i, url in enumerate(classroom_urls, 1):
         print(f'classroom_urls {i}/{len(classroom_urls)}')
         if not p.goto(url):
-            append_csv(fh('csv/failed.csv'), {
-                'url': url,
-                'type':'classroom_url',
-                'reason': 'goto'
-            })
+            append_csv(fh('csv/failed.csv'), {'url': url, 'reason': 'goto'})
             continue
         append_csv(fh('csv/scrape.csv'), {
             'URL': page.url,
