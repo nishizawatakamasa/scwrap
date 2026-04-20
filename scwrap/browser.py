@@ -17,17 +17,16 @@ def patchright_page() -> Iterator[Page]:
             channel='chrome',
             headless=False,
         ) as browser:
-            with browser.new_context(no_viewport=True) as context:
+            with browser.new_context() as context:
                 page = context.new_page()
                 yield page
 
 
 @contextmanager
-def camoufox_page(locale: str | list[str] = 'ja-JP,ja') -> Iterator[Page]:
+def camoufox_page() -> Iterator[Page]:
     with Camoufox(
         headless=False,
         humanize=True,
-        locale=locale,
     ) as browser:
         page = browser.new_page()
         yield page

@@ -70,11 +70,11 @@ uv run camoufox fetch
 
 ### `scwrap.browser`
 
-- **`patchright_page()`** … コンテキストマネージャ。Patchright で **Google Chrome**（`channel='chrome'`）を起動し、**毎回クリーンな `BrowserContext`** の `Page` を `with` に渡す（永続プロファイルは使わない）。`headless=False`・`no_viewport=True` などは固定。
+- **`patchright_page()`** … コンテキストマネージャ。Patchright で **Google Chrome**（`channel='chrome'`）を起動し、**毎回クリーンな `BrowserContext`** の `Page` を `with` に渡す（永続プロファイルは使わない）。`headless=False` などは固定。
 
-- **`camoufox_page(locale=...)`** … Camoufox（Firefox）で `Page` を開く。  
-  _例:_ `with camoufox_page(locale='en-US,en') as page:`  
-  デフォルトの `locale` は `'ja-JP,ja'`。`headless=False`・`humanize=True` は固定。
+- **`camoufox_page()`** … Camoufox（Firefox）で `Page` を開く。  
+  _例:_ `with camoufox_page() as page:`  
+  `headless=False`・`humanize=True` は固定。
 
 ウィンドウ最大化が必要なら、コードではなく **ブラウザ上で手動**してください（起動引数に依存させない）。
 
@@ -172,6 +172,34 @@ for i, file_path in enumerate(fh('html').glob('*.html')):
         '所在地': p.css('dt').grep(r'所在地').first.next('dd').text,
     })
 write_parquet(fh('parquet/extract.parquet'), results)
+```
+
+## 並列処理(仮)
+
+```python
+from scwrap.parallel import run_parallel, html_files
+from scwrap.utils import parse_html, wrap_parser
+from pathlib import Path
+
+def extract_my_data(file_path: str) -> dict | None:
+    """ドメインロジック全部ここ"""
+    parser = parse_html(file_path)
+    if parser is None:
+        return None
+    
+    p = wrap_parser(parser)
+    return {
+        "URL": p.css('meta[name="scwrap:url"]').first.attr("content"),
+        "file_name": Path(file_path).name,
+        "教室名": p.css("h1 .text02").first.text,
+        "住所": p.css(".item .mapText").first.text,
+        "所在地": p.css("dt").grep(r'所在地').first.next("dd").text,
+    }
+
+# 使う
+results = run_parallel(html_files(fh("html")), extract_my_data, workers=8)
+results = [r for r in results if r is not None]
+write_parquet(fh("parquet/extract.parquet"), results)
 ```
 
 ## License - ライセンス
