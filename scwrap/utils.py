@@ -8,6 +8,7 @@ from typing import Callable, Iterable, TypeVar
 import pandas as pd
 from loguru import logger
 from selectolax.lexbor import LexborHTMLParser
+from tqdm import tqdm
 
 
 def _ensure_parent(path: Path) -> None:
@@ -72,7 +73,15 @@ def pool_map[T, R](
     worker: Callable[[T], R],
     items: Iterable[T],
     workers: int | None = None,
+    *,
+    progress: bool = True,
 ) -> list[R]:
+    if progress:
+        item_list = list(items)
+        with ProcessPoolExecutor(max_workers=workers) as ex:
+            return list(
+                tqdm(ex.map(worker, item_list), total=len(item_list), unit="file")
+            )
     with ProcessPoolExecutor(max_workers=workers) as ex:
         return list(ex.map(worker, items))
 

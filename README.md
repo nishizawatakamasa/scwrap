@@ -13,6 +13,7 @@ DOM・パーサのラッパーは **`scwrap`**（`wrap_page` / `wrap_parser` な
 - Python 3.12 or higher（`requires-python` は `pyproject.toml` 参照）
 - 主要依存: patchright, playwright, selectolax, pandas, pyarrow, camoufox, loguru（一覧・下限は `pyproject.toml` の `[project.dependencies]`）
 - `write_parquet` は **pandas + pyarrow**（`pyarrow` は依存に含まれる）。別エンジンに切り替える場合のみ `fastparquet` などが必要になることがあります。
+- `pool_map` は既定で **tqdm** で進捗を表示します（`progress=False` で無効化）。tqdm は依存に含まれています。
 - ブラウザ: **Patchright / Playwright 用の取得**と、下記のとおり **`patchright_page` は Google Chrome 前提**です。
 
 ## Installation - インストール
@@ -180,23 +181,13 @@ write_parquet(fh('parquet/extract.parquet'), results)
 from pathlib import Path
 
 from scwrap import wrap_parser
-from scwrap.utils import (
-    from_here,
-    glob_paths,
-    parse_html,
-    pool_map,
-    write_parquet,
-)
+from scwrap.utils import from_here, glob_paths, parse_html, pool_map, write_parquet
 
 fh = from_here(__file__)
 
-
 def extract(file_path: str) -> dict | None:
-    '''ドメインロジック全部ここ'''
-    parser = parse_html(file_path)
-    if parser is None:
+    if not (parser := parse_html(file_path)):
         return None
-
     p = wrap_parser(parser)
     return {
         'URL': p.css('meta[name="scwrap:url"]').first.attr('content'),
@@ -206,11 +197,9 @@ def extract(file_path: str) -> dict | None:
         '所在地': p.css('dt').grep(r'所在地').first.next('dd').text,
     }
 
-
 if __name__ == '__main__':
     html_paths = glob_paths(fh('html'), '*.html')
-    results = pool_map(extract, html_paths)
-    results = [r for r in results if r]
+    results = [r for r in pool_map(extract, html_paths) if r]
     write_parquet(fh('parquet/extract.parquet'), results)
 ```
 
