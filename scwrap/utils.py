@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import hashlib
+from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
-from typing import Callable
+from typing import Callable, Iterable, TypeVar
 
 import pandas as pd
 from loguru import logger
@@ -65,3 +66,20 @@ def log_to_file(path: Path | str) -> None:
     p = Path(path)
     _ensure_parent(p)
     logger.add(p, level="WARNING", encoding="utf-8")
+
+
+def pool_map[T, R](
+    worker: Callable[[T], R],
+    items: Iterable[T],
+    workers: int | None = None,
+) -> list[R]:
+    with ProcessPoolExecutor(max_workers=workers) as ex:
+        return list(ex.map(worker, items))
+
+def glob_paths(dir_path: str | Path, pattern: str = "*.html") -> list[str]:
+    """
+    ``dir_path`` 直下で ``pattern`` に一致するパスを ``str`` のリストで返す。
+
+    ``str`` にしているのは ``pool_map`` 等のプロセスプールへ渡すとき pickle しやすくするため。
+    """
+    return [str(p) for p in Path(dir_path).glob(pattern)]

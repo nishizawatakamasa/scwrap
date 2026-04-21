@@ -138,7 +138,7 @@ with camoufox_page() as page:
     item_urls = p.css('ul.items > li > a').urls
 
     for i, url in enumerate(item_urls, 1):
-        print(f"item_urls {i}/{len(item_urls)}")
+        print(f'item_urls {i}/{len(item_urls)}')
         if not p.goto(url):
             append_csv(fh('csv/failed.csv'), {'url': url, 'reason': 'goto'})
             continue
@@ -174,32 +174,44 @@ for i, file_path in enumerate(fh('html').glob('*.html')):
 write_parquet(fh('parquet/extract.parquet'), results)
 ```
 
-## 並列処理(仮)
+## 保存済みHTMLからスクレイピングしてParquetに出力する(並列処理)
 
 ```python
-from scwrap.parallel import run_parallel, html_files
-from scwrap.utils import parse_html, wrap_parser
 from pathlib import Path
 
-def extract_my_data(file_path: str) -> dict | None:
-    """ドメインロジック全部ここ"""
+from scwrap import wrap_parser
+from scwrap.utils import (
+    from_here,
+    glob_paths,
+    parse_html,
+    pool_map,
+    write_parquet,
+)
+
+fh = from_here(__file__)
+
+
+def extract(file_path: str) -> dict | None:
+    '''ドメインロジック全部ここ'''
     parser = parse_html(file_path)
     if parser is None:
         return None
-    
+
     p = wrap_parser(parser)
     return {
-        "URL": p.css('meta[name="scwrap:url"]').first.attr("content"),
-        "file_name": Path(file_path).name,
-        "教室名": p.css("h1 .text02").first.text,
-        "住所": p.css(".item .mapText").first.text,
-        "所在地": p.css("dt").grep(r'所在地').first.next("dd").text,
+        'URL': p.css('meta[name="scwrap:url"]').first.attr('content'),
+        'file_name': Path(file_path).name,
+        '教室名': p.css('h1 .text02').first.text,
+        '住所': p.css('.item .mapText').first.text,
+        '所在地': p.css('dt').grep(r'所在地').first.next('dd').text,
     }
 
-# 使う
-results = run_parallel(html_files(fh("html")), extract_my_data, workers=8)
-results = [r for r in results if r is not None]
-write_parquet(fh("parquet/extract.parquet"), results)
+
+if __name__ == '__main__':
+    html_paths = glob_paths(fh('html'), '*.html')
+    results = pool_map(extract, html_paths)
+    results = [r for r in results if r]
+    write_parquet(fh('parquet/extract.parquet'), results)
 ```
 
 ## License - ライセンス
