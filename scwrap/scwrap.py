@@ -5,6 +5,7 @@ import random
 import re
 import time
 import unicodedata as ud
+from datetime import datetime, timezone
 from urllib.parse import urljoin
 
 from loguru import logger
@@ -44,6 +45,10 @@ class _WrappedPage(_PageScoped):
     def __init__(self, page: Page) -> None:
         self._page = page
 
+    @property
+    def raw(self) -> Page:
+        return self._page
+
     def css(self, selector: str) -> _WrappedElementGroup:
         elems = self._page.query_selector_all(selector)
         return self.wrap_element_group([self.wrap_element(e) for e in elems])
@@ -81,12 +86,15 @@ class _WrappedPage(_PageScoped):
             logger.warning(f"[wait] {type(e).__name__}: {e} | selector={selector!r} | url={self._page.url}")
             return self.wrap_element(None)
     
-    def html(self, with_url: bool = False) -> str:
+    def html(self, with_url: bool = False, with_saved_at: bool = False) -> str:
         content = self._page.content()
-        if not with_url:
-            return content
-        meta = f'<meta name="scwrap:url" content="{html.escape(self._page.url)}">'
-        return meta + content
+        metas: list[str] = []
+        if with_url:
+            metas.append(f'<meta name="scwrap:url" content="{html.escape(self._page.url)}">')
+        if with_saved_at:
+            ts = datetime.now(timezone.utc).isoformat()
+            metas.append(f'<meta name="scwrap:saved_at" content="{ts}">')
+        return ''.join(metas) + content
 
 
 class _WrappedElement(_PageScoped):
@@ -182,9 +190,27 @@ class _WrappedParser:
     def __init__(self, parser: LexborHTMLParser) -> None:
         self._parser = parser
 
+    @property
+    def raw(self) -> LexborHTMLParser:
+        return self._parser
+
     def css(self, selector: str) -> _WrappedNodeGroup:
         nodes = self._parser.css(selector)
         return wrap_node_group([wrap_node(n) for n in nodes])
+
+    @property
+    def url(self) -> str | None:
+        node = self._parser.css_first('meta[name="scwrap:url"]')
+        if node is None:
+            return None
+        return node.attributes.get('content') or None
+
+    @property
+    def saved_at(self) -> str | None:
+        node = self._parser.css_first('meta[name="scwrap:saved_at"]')
+        if node is None:
+            return None
+        return node.attributes.get('content') or None
 
 class _WrappedNode:
     def __init__(self, node: LexborNode | None) -> None:

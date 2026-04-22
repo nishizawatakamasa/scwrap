@@ -1,9 +1,7 @@
-from __future__ import annotations
-
 import hashlib
 from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
-from typing import Callable, Iterable, TypeVar
+from typing import Callable, Iterable
 
 import pandas as pd
 from loguru import logger
@@ -69,21 +67,34 @@ def log_to_file(path: Path | str) -> None:
     logger.add(p, level="WARNING", encoding="utf-8")
 
 
+class _SafeWorker:
+    def __init__(self, fn: Callable) -> None:
+        self.fn = fn
+
+    def __call__(self, x):
+        try:
+            return self.fn(x)
+        except Exception as e:
+            logger.error(f"[pool_map] {type(e).__name__}: {e}")
+            return None
+
+
 def pool_map[T, R](
     worker: Callable[[T], R],
     items: Iterable[T],
     workers: int | None = None,
     *,
     progress: bool = True,
-) -> list[R]:
+) -> list[R | None]:
+    safe = _SafeWorker(worker)
     if progress:
         item_list = list(items)
         with ProcessPoolExecutor(max_workers=workers) as ex:
             return list(
-                tqdm(ex.map(worker, item_list), total=len(item_list), unit="file")
+                tqdm(ex.map(safe, item_list), total=len(item_list), unit="file")
             )
     with ProcessPoolExecutor(max_workers=workers) as ex:
-        return list(ex.map(worker, items))
+        return list(ex.map(safe, items))
 
 def glob_paths(dir_path: str | Path, pattern: str = "*.html") -> list[str]:
     """
