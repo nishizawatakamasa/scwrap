@@ -48,8 +48,12 @@ class _WrappedPage(_PageScoped):
     @property
     def raw(self) -> Page:
         return self._page
+    
+    def s(self, selector: str) -> _WrappedElement:
+        elem = self._page.query_selector(selector)
+        return self.wrap_element(elem)
 
-    def css(self, selector: str) -> _WrappedElementGroup:
+    def ss(self, selector: str) -> _WrappedElementGroup:
         elems = self._page.query_selector_all(selector)
         return self.wrap_element_group([self.wrap_element(e) for e in elems])
 
@@ -106,7 +110,11 @@ class _WrappedElement(_PageScoped):
     def raw(self) -> ElementHandle | None:
         return self._elem
     
-    def css(self, selector: str) -> _WrappedElementGroup:
+    def s(self, selector: str) -> _WrappedElement:
+        elem = self._elem.query_selector(selector)
+        return self.wrap_element(elem)
+    
+    def ss(self, selector: str) -> _WrappedElementGroup:
         elems = self._elem.query_selector_all(selector) if self._elem else []
         return self.wrap_element_group([self.wrap_element(e) for e in elems])
 
@@ -163,16 +171,30 @@ class _WrappedElementGroup(_PageScoped):
         return self._elems
 
     @property
-    def first(self) -> _WrappedElement:
+    def one(self) -> _WrappedElement:
         return self._elems[0] if self._elems else self.wrap_element(None)
 
-    def grep(self, pattern: str) -> _WrappedElementGroup:
+    def re(self, pattern: str) -> _WrappedElementGroup:
         prog = re.compile(pattern)
         filtered = [
             e for e in self._elems
             if (t := e.text) and prog.search(ud.normalize('NFKC', t))
         ]
         return self.wrap_element_group(filtered)
+
+    def re_one(self, pattern: str) -> _WrappedElement:
+        prog = re.compile(pattern)
+        for e in self._elems:
+            if (t := e.text) and prog.search(ud.normalize('NFKC', t)):
+                return e
+        return self.wrap_element(None)
+
+    def indexed(self) -> _ElementTextIndex:
+        pairs: list[tuple[str, _WrappedElement]] = []
+        for e in self._elems:
+            if (t := e.text):
+                pairs.append((ud.normalize('NFKC', t), e))
+        return _ElementTextIndex(self._page, pairs)
 
     @property
     def texts(self) -> list[str | None]:
@@ -193,8 +215,12 @@ class _WrappedParser:
     @property
     def raw(self) -> LexborHTMLParser:
         return self._parser
+    
+    def s(self, selector: str) -> _WrappedNode:
+        node = self._parser.css_first(selector)
+        return wrap_node(node)
 
-    def css(self, selector: str) -> _WrappedNodeGroup:
+    def ss(self, selector: str) -> _WrappedNodeGroup:
         nodes = self._parser.css(selector)
         return wrap_node_group([wrap_node(n) for n in nodes])
 
@@ -219,8 +245,12 @@ class _WrappedNode:
     @property
     def raw(self) -> LexborNode | None:
         return self._node
+    
+    def s(self, selector: str) -> _WrappedNode:
+        node = self._node.css_first(selector)
+        return wrap_node(node)
 
-    def css(self, selector: str) -> _WrappedNodeGroup:
+    def ss(self, selector: str) -> _WrappedNodeGroup:
         nodes = self._node.css(selector) if self._node else []
         return wrap_node_group([wrap_node(n) for n in nodes])
 
@@ -254,10 +284,10 @@ class _WrappedNodeGroup:
         return self._nodes
 
     @property
-    def first(self) -> _WrappedNode:
+    def one(self) -> _WrappedNode:
         return self._nodes[0] if self._nodes else wrap_node(None)
 
-    def grep(self, pattern: str) -> _WrappedNodeGroup:
+    def re(self, pattern: str) -> _WrappedNodeGroup:
         prog = re.compile(pattern)
         filtered = [
             n for n in self._nodes
@@ -265,9 +295,58 @@ class _WrappedNodeGroup:
         ]
         return wrap_node_group(filtered)
 
+    def re_one(self, pattern: str) -> _WrappedNode:
+        prog = re.compile(pattern)
+        for n in self._nodes:
+            if (t := n.text) and prog.search(ud.normalize('NFKC', t)):
+                return n
+        return wrap_node(None)
+
+    def indexed(self) -> _NodeTextIndex:
+        pairs: list[tuple[str, _WrappedNode]] = []
+        for n in self._nodes:
+            if (t := n.text):
+                pairs.append((ud.normalize('NFKC', t), n))
+        return _NodeTextIndex(pairs)
+
     @property
     def texts(self) -> list[str | None]:
         return [n.text for n in self._nodes]
 
     def attrs(self, attr_name: str) -> list[str | None]:
         return [n.attr(attr_name) for n in self._nodes]
+
+
+class _ElementTextIndex:
+    def __init__(self, page: Page, pairs: list[tuple[str, _WrappedElement]]) -> None:
+        self._page = page
+        self._pairs = pairs
+
+    def re(self, pattern: str) -> _WrappedElementGroup:
+        prog = re.compile(pattern)
+        filtered = [e for text, e in self._pairs if prog.search(text)]
+        return _WrappedElementGroup(self._page, filtered)
+
+    def re_one(self, pattern: str) -> _WrappedElement:
+        prog = re.compile(pattern)
+        for text, e in self._pairs:
+            if prog.search(text):
+                return e
+        return _WrappedElement(self._page, None)
+
+
+class _NodeTextIndex:
+    def __init__(self, pairs: list[tuple[str, _WrappedNode]]) -> None:
+        self._pairs = pairs
+
+    def re(self, pattern: str) -> _WrappedNodeGroup:
+        prog = re.compile(pattern)
+        filtered = [n for text, n in self._pairs if prog.search(text)]
+        return wrap_node_group(filtered)
+
+    def re_one(self, pattern: str) -> _WrappedNode:
+        prog = re.compile(pattern)
+        for text, n in self._pairs:
+            if prog.search(text):
+                return n
+        return wrap_node(None)

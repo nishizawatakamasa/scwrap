@@ -11,8 +11,8 @@ DOM・パーサのラッパーは **`scwrap`**（`wrap_page` / `wrap_parser` な
 ## Requirements - 必要条件
 
 - Python 3.12 or higher（`requires-python` は `pyproject.toml` 参照）
-- 主要依存: patchright, playwright, selectolax, pandas, pyarrow, camoufox, loguru（一覧・下限は `pyproject.toml` の `[project.dependencies]`）
-- `write_parquet` は **pandas + pyarrow**（`pyarrow` は依存に含まれる）。別エンジンに切り替える場合のみ `fastparquet` などが必要になることがあります。
+- 主要依存: patchright, playwright, selectolax, pyarrow, camoufox, loguru, tqdm（一覧・下限は `pyproject.toml` の `[project.dependencies]`）
+- `write_parquet` は **pyarrow** を直接使います（pandas 依存なし）。`append_csv` は stdlib の `csv` で書き出します。出力をデータフレームで扱いたい場合は、ユーザ側で `pandas.read_parquet(...)` / `polars.read_parquet(...)` などを使ってください。
 - `pool_map` は既定で **tqdm** で進捗を表示します（`progress=False` で無効化）。tqdm は依存に含まれています。
 - ブラウザ: **Patchright / Playwright 用の取得**と、下記のとおり **`patchright_page` は Google Chrome 前提**です。
 
@@ -65,9 +65,9 @@ uv run camoufox fetch
 
 ### `scwrap`（ラッパー）
 
-ブラウザ側は `wrap_page(page)` が起点です。`goto`・`wait`・`css` などはこの戻り値に対して呼びます。`goto` は失敗時に最大 `try_cnt` 回まで再試行し、試行間は `wait_range`（秒の乱数範囲）で待ちます。成功したあとは既定で `sleep_after`（秒の乱数範囲、デフォルト `(1, 2)`）で待機します。待機を無効にする場合は `sleep_after=None` を渡してください。要素が複数なら `css(...)` はグループを返し、先頭だけなら `.first`、正規表現で絞り込みは `.grep(pattern)`（マッチ対象のテキストは NFKC 正規化）、相対 URL の解決には `.urls`（単一は `.url`）を使います。`.text` と `.attr` は DOM に近い文字列を返し、ラッパーでは strip しません（空や欠如は `None`）。`.url` / `.urls` だけ `href` を trim してから `urljoin` します。Playwright のハンドルは `.raw` です。
+ブラウザ側は `wrap_page(page)` が起点です。`goto`・`wait`・`s` / `ss` などはこの戻り値に対して呼びます。`goto` は失敗時に最大 `try_cnt` 回まで再試行し、試行間は `wait_range`（秒の乱数範囲）で待ちます。成功したあとは既定で `sleep_after`（秒の乱数範囲、デフォルト `(1, 2)`）で待機します。待機を無効にする場合は `sleep_after=None` を渡してください。セレクタ 1 件目は `s('...')`、複数は `ss('...')`（グループ）。先頭 1 件だけなら `.one`、正規表現で絞り込みは `.re(pattern)`（グループ）や `.re_one(pattern)`（最初の 1 件だけ）。マッチ対象のテキストは NFKC 正規化。同じグループに何度も正規表現を当てるときは `.indexed()` してから `.re` / `.re_one` すると、`text` の取り直しが 1 回で済む（ブラウザ側では IPC も抑えられる）。相対 URL の解決には `.urls`（要素 1 つは `.url` プロパティ）を使います。兄弟方向に進むのは `next('...')`（同一親の次兄弟から条件に合う要素を探す）。`.text` と `attr` は DOM に近い文字列を返し、ラッパーでは strip しません（空や欠如は `None`）。`.url` / `.urls` だけ `href` を trim してから `urljoin` し、 `#` や `javascript:` 等は採用しません。`html()` は `with_url` / `with_saved_at` で、HTML 先頭に `<meta name="scwrap:url">` や `<meta name="scwrap:saved_at">` を挿入できます。Playwright のハンドルは `.raw` です。
 
-静的 HTML（selectolax）側は `wrap_parser(parser)` から `css` でノードのグループを得て、`.grep` / `.text` など（ノード単体は `wrap_node` 系）。クラス実装は非公開で、**コンストラクタは常にこれらのファクトリー経由**にしてください。
+`wrap_parser(parser)` では `s` / `ss` のほか、保存 HTML に挿入した meta を読み取る **`url`** / **`saved_at`** プロパティがあります。クラス実装は非公開で、**コンストラクタは常にファクトリー経由**にしてください。
 
 ### `scwrap.browser`
 
@@ -81,7 +81,9 @@ uv run camoufox fetch
 
 ### `scwrap.utils`
 
-`log_to_file`・`from_here`・`parse_html`・`append_csv`・`write_parquet`・`save_html`・`hash_name` など（各関数は `scwrap/utils.py` を参照）。`append_csv`・`write_parquet`・`save_html`・`log_to_file` は、出力先ファイルの **親ディレクトリが無ければ作成**します（読み取り専用の `parse_html` などは対象外）。
+`add_log_file`・`from_here`・`parse_html`・`append_csv`・`write_parquet`・`save_html`・`hash_name` など（各関数は `scwrap/utils.py` を参照）。`append_csv`・`write_parquet`・`save_html`・`add_log_file` は、出力先ファイルの **親ディレクトリが無ければ作成**します（読み取り専用の `parse_html` などは対象外）。
+
+なお scwrap は内部で [loguru](https://github.com/Delgan/loguru) を使ってログを出します。`add_log_file(path, level="WARNING")` は `logger.add(path, level=..., encoding='utf-8')` を呼ぶだけの糖衣で、既定の stderr 出力に**追加**でファイルへも書き出すようになります（既定シンクを置き換えるのではなく tee する形）。不要なら呼ばなくてよく、rotation / retention や複数シンクなど凝った構成が必要なら `from loguru import logger` して `logger.add(...)` / `logger.remove(...)` を直接使ってください。
 
 
 ## Basic Usage - 基本的な使い方
@@ -89,16 +91,16 @@ uv run camoufox fetch
 ```python
 from scwrap import wrap_page
 from scwrap.browser import patchright_page
-from scwrap.utils import log_to_file, append_csv, from_here
+from scwrap.utils import add_log_file, append_csv, from_here
 
 fh = from_here(__file__)
-log_to_file(fh('log/scraping.log'))
+add_log_file(fh('log/scraping.log'))
 
 with patchright_page() as page:
     p = wrap_page(page)
 
     p.goto('https://www.foobarbaz1.jp')
-    pref_urls = p.css('li.item > ul > li > a').urls
+    pref_urls = p.ss('li.item > ul > li > a').urls
 
     classroom_urls = []
     for i, url in enumerate(pref_urls, 1):
@@ -106,19 +108,22 @@ with patchright_page() as page:
         if not p.goto(url):
             append_csv(fh('csv/failed.csv'), {'url': url, 'reason': 'goto'})
             continue
-        classroom_urls.extend(p.css('.school-area h4 a').urls)
+        classroom_urls.extend(p.ss('.school-area h4 a').urls)
 
     for i, url in enumerate(classroom_urls, 1):
         print(f'classroom_urls {i}/{len(classroom_urls)}')
         if not p.goto(url):
             append_csv(fh('csv/failed.csv'), {'url': url, 'reason': 'goto'})
             continue
+        ths = p.ss('th').indexed()
         append_csv(fh('csv/scrape.csv'), {
             'URL': page.url,
-            '教室名': p.css('h1 .text01').first.text,
-            '住所': p.css('.item .mapText').first.text,
-            '電話番号': p.css('.item .phoneNumber').first.text,
-            'HP': p.css('th').grep('ホームページ').first.next('td').css('a').first.url,
+            '教室名': p.s('h1 .text01').text,
+            '住所': p.s('.item .mapText').text,
+            '電話番号': p.s('.item .phoneNumber').text,
+            'HP': ths.re_one(r'ホームページ').next('td').s('a').url,
+            '営業時間': ths.re_one(r'営業時間').next('td').text,
+            '定休日': ths.re_one(r'定休日').next('td').text,
         })
 ```
 
@@ -127,16 +132,16 @@ with patchright_page() as page:
 ```python
 from scwrap import wrap_page
 from scwrap.browser import camoufox_page
-from scwrap.utils import log_to_file, append_csv, from_here, hash_name, save_html
+from scwrap.utils import add_log_file, append_csv, from_here, hash_name, save_html
 
 fh = from_here(__file__)
-log_to_file(fh('log/scraping.log'))
+add_log_file(fh('log/scraping.log'))
 
 with camoufox_page() as page:
     p = wrap_page(page)
 
     p.goto('https://www.foobarbaz1.jp')
-    item_urls = p.css('ul.items > li > a').urls
+    item_urls = p.ss('ul.items > li > a').urls
 
     for i, url in enumerate(item_urls, 1):
         print(f'item_urls {i}/{len(item_urls)}')
@@ -153,10 +158,10 @@ with camoufox_page() as page:
 
 ```python
 from scwrap import wrap_parser
-from scwrap.utils import log_to_file, from_here, parse_html, write_parquet
+from scwrap.utils import add_log_file, from_here, parse_html, write_parquet
 
 fh = from_here(__file__)
-log_to_file(fh('log/scraping.log'))
+add_log_file(fh('log/scraping.log'))
 
 results = []
 for i, file_path in enumerate(fh('html').glob('*.html')):
@@ -164,13 +169,15 @@ for i, file_path in enumerate(fh('html').glob('*.html')):
     if not (parser := parse_html(file_path)):
         continue
     p = wrap_parser(parser)
-    url = p.css('meta[name="scwrap:url"]').first.attr('content')
+    dts = p.ss('dt').indexed()
     results.append({
-        'URL': url,
+        'URL': p.url,
         'file_name': file_path.name,
-        '教室名': p.css('h1 .text02').first.text,
-        '住所': p.css('.item .mapText').first.text,
-        '所在地': p.css('dt').grep(r'所在地').first.next('dd').text,
+        '教室名': p.s('h1 .text02').text,
+        '住所': p.s('.item .mapText').text,
+        '所在地': dts.re_one(r'所在地').next('dd').text,
+        '交通': dts.re_one(r'交通').next('dd').text,
+        '物件番号': dts.re_one(r'物件番号').next('dd').text,
     })
 write_parquet(fh('parquet/extract.parquet'), results)
 ```
@@ -183,24 +190,32 @@ from pathlib import Path
 from scwrap import wrap_parser
 from scwrap.utils import from_here, glob_paths, parse_html, pool_map, write_parquet
 
-fh = from_here(__file__)
+def main():
+    fh = from_here(__file__)
+    html_paths = glob_paths(fh('html'), '*.html')
+    results = [r for r in pool_map(extract, html_paths) if r]
+    write_parquet(fh('parquet/extract.parquet'), results)
 
 def extract(file_path: str) -> dict | None:
     if not (parser := parse_html(file_path)):
         return None
     p = wrap_parser(parser)
+    # 同じ dt 群から項目を複数取るときは indexed() で text を一度だけ切り出す
+    dts = p.ss('dt').indexed()
     return {
-        'URL': p.css('meta[name="scwrap:url"]').first.attr('content'),
+        'URL': p.url,
         'file_name': Path(file_path).name,
-        '教室名': p.css('h1 .text02').first.text,
-        '住所': p.css('.item .mapText').first.text,
-        '所在地': p.css('dt').grep(r'所在地').first.next('dd').text,
+        '教室名': p.s('h1 .text02').text,
+        '住所': p.s('.item .mapText').text,
+        '所在地': dts.re_one(r'所在地').next('dd').text,
+        '交通': dts.re_one(r'交通').next('dd').text,
+        '価格': dts.re_one(r'価格').next('dd').text,
+        '設備・条件': dts.re_one(r'設備').next('dd').text,
+        '備考': dts.re_one(r'備考').next('dd').text,
     }
 
 if __name__ == '__main__':
-    html_paths = glob_paths(fh('html'), '*.html')
-    results = [r for r in pool_map(extract, html_paths) if r]
-    write_parquet(fh('parquet/extract.parquet'), results)
+    main()
 ```
 
 ## License - ライセンス
