@@ -5,7 +5,7 @@
 scwrap is a scraping utility library built on Patchright, Playwright, and selectolax.  
 scwrap は Patchright / Playwright（`Page` API）と selectolax をベースにしたスクレイピングユーティリティライブラリです。**細かい挙動はプリミティブの組み合わせで組み立てる**前提の薄いラッパーです（「よしなに」な自動修復は置かない方針）。
 
-DOM・パーサのラッパーは **`scwrap`**（`wrap_page` / `wrap_parser` / `wrap_node` / `wrap_node_group` と、Patchright / Playwright 共通の **`Page`** 型エイリアス）から、ブラウザ起動は **`scwrap.browser`**、CSV やログなどの周辺は **`scwrap.utils`** から import します。
+DOM・パーサのラッパーは **`scwrap`**（`wrap_page` / `wrap_parser` / `wrap_node` / `wrap_node_group`、Patchright / Playwright 共通の **`Page`** / **`ElementHandle`** 型エイリアス、型ヒント用の **`WrappedPage`** などのラッパー型・**`ElementTextIndex`** / **`NodeTextIndex`**）から、ブラウザ起動は **`scwrap.browser`**、CSV やログなどの周辺は **`scwrap.utils`** から import します。
 
 
 ## Requirements - 必要条件
@@ -65,9 +65,9 @@ uv run camoufox fetch
 
 ### `scwrap`（ラッパー）
 
-ブラウザ側は `wrap_page(page)` が起点です。`goto`・`wait`・`css_first` / `css` などはこの戻り値に対して呼びます。`goto` は失敗時に最大 `try_cnt` 回まで再試行し、試行間は `wait_range`（秒の乱数範囲）で待ちます。成功したあとは既定で `sleep_after`（秒の乱数範囲、デフォルト `(1, 2)`）で待機します。待機を無効にする場合は `sleep_after=None` を渡してください。セレクタで 1 件は `css_first('...')`、複数は `css('...')`（グループ）。先頭 1 件だけなら `.one`、正規表現で絞り込みは `.grep(pattern)`（グループ）や `.grep_first(pattern)`（最初の 1 件だけ）。マッチ対象のテキストは NFKC 正規化（パターンも Python の `re` と同様）。同じグループに何度も正規表現を当てるときは `.indexed()` してから `.grep` / `.grep_first` すると、`text` の取り直しが 1 回で済む（ブラウザ側では IPC も抑えられる）。相対 URL の解決には `.urls`（要素 1 つは `.url` プロパティ）を使います。兄弟方向に進むのは `next('...')`（ブラウザ側は `nextElementSibling` と `matches` を使いテキストノードを挟んでも要素兄弟だけを辿る／Lexbor 側はリンクを進めつつ要素ノードのみ `css_matches`）。親要素がヒットしない場合でも `css_first` はクラッシュせず、`None` を包んだラッパーを返します。`.text` と `attr(...)` は DOM に近い文字列を返し、ラッパーでは strip しません（空や欠如は `None`）。`.url` / `.urls` だけ `href` を trim してから `urljoin` し、 `#` や `javascript:` 等は採用しません。`html()` は `with_url` / `with_saved_at` で、HTML 先頭に `<meta name="scwrap:url">` や `<meta name="scwrap:saved_at">` を挿入できます。Playwright のハンドルは `.raw` です。
+ブラウザ側は `wrap_page(page)` が起点です。`goto`・`wait`・`css_first` / `css` などはこの戻り値に対して呼びます。`goto` は失敗時に最大 `try_cnt` 回まで再試行し、試行間は `wait_range`（秒の乱数範囲）で待ちます。成功したあとは既定で `sleep_after`（秒の乱数範囲、デフォルト `(1, 2)`）で待機します。待機を無効にする場合は `sleep_after=None` を渡してください。セレクタで 1 件は `css_first('...')`、複数は `css('...')`（グループ）。先頭 1 件だけならグループの **`.first`** プロパティ、正規表現で絞り込みは **`.regex(pattern)`**（マッチした要素だけのグループ）や **`.regex_first(pattern)`**（最初の 1 件だけ）。マッチ対象のテキストは NFKC 正規化（パターンも Python の `re` と同様）。同じグループに何度も正規表現を当てるときは `.indexed()` してから `.regex` / `.regex_first` すると、`text` の取り直しが 1 回で済む（ブラウザ側では IPC も抑えられる）。`ElementTextIndex` / `NodeTextIndex` でも同様に `.regex` / `.regex_first` が使えます。相対 URL の解決には `.urls`（要素 1 つは `.url` プロパティ）を使います。兄弟方向に進むのは `next('...')`（ブラウザ側は `nextElementSibling` と `matches` を使いテキストノードを挟んでも要素兄弟だけを辿る／Lexbor 側はリンクを進めつつ要素ノードのみ `css_matches`）。親要素がヒットしない場合でも `css_first` はクラッシュせず、`None` を包んだラッパーを返します。`.text` と `attr(...)` は DOM に近い文字列を返し、ラッパーでは strip しません（空や欠如は `None`）。`.url` / `.urls` だけ `href` を trim してから `urljoin` し、 `#` や `javascript:` 等は採用しません。`html()` は `with_url` / `with_saved_at` で、HTML 先頭に `<meta name="scwrap:url">` や `<meta name="scwrap:saved_at">` を挿入できます。Playwright のハンドルは `.raw` です。
 
-`wrap_parser(parser)` では `css_first` / `css` のほか、保存 HTML に挿入した meta を読み取る **`url`** / **`saved_at`** プロパティがあります。公開 API はすべてファクトリーと型エイリアスだけで、**コンストラクタは使わず** `wrap_page` / `wrap_parser` / `wrap_node` など経由にしてください。
+`wrap_parser(parser)` では `css_first` / `css` のほか、保存 HTML に挿入した meta を読み取る **`url`** / **`saved_at`** プロパティがあります。**インスタンスの生成は** `wrap_page` / `wrap_parser` / `wrap_node` / `wrap_node_group` のファクトリーを使ってください。`WrappedPage` などのクラス名は型ヒント用に `from scwrap import WrappedPage, ...` で import できます。
 
 ### `scwrap.browser`
 
@@ -115,15 +115,15 @@ with patchright_page() as page:
         if not p.goto(url):
             append_csv(fh('csv/failed.csv'), {'url': url, 'reason': 'goto'})
             continue
-        ths = p.css('th').indexed()
+        th_idx = p.css('th').indexed()
         append_csv(fh('csv/scrape.csv'), {
             'URL': page.url,
             '教室名': p.css_first('h1 .text01').text,
             '住所': p.css_first('.item .mapText').text,
             '電話番号': p.css_first('.item .phoneNumber').text,
-            'HP': ths.grep_first(r'ホームページ').next('td').css_first('a').url,
-            '営業時間': ths.grep_first(r'営業時間').next('td').text,
-            '定休日': ths.grep_first(r'定休日').next('td').text,
+            'HP': th_idx.regex_first(r'ホームページ').next('td').css_first('a').url,
+            '営業時間': th_idx.regex_first(r'営業時間').next('td').text,
+            '定休日': th_idx.regex_first(r'定休日').next('td').text,
         })
 ```
 
@@ -169,15 +169,15 @@ for i, file_path in enumerate(fh('html').glob('*.html')):
     if not (parser := parse_html(file_path)):
         continue
     p = wrap_parser(parser)
-    dts = p.css('dt').indexed()
+    dt_idx = p.css('dt').indexed()
     results.append({
         'URL': p.url,
         'file_name': file_path.name,
         '教室名': p.css_first('h1 .text02').text,
         '住所': p.css_first('.item .mapText').text,
-        '所在地': dts.grep_first(r'所在地').next('dd').text,
-        '交通': dts.grep_first(r'交通').next('dd').text,
-        '物件番号': dts.grep_first(r'物件番号').next('dd').text,
+        '所在地': dt_idx.regex_first(r'所在地').next('dd').text,
+        '交通': dt_idx.regex_first(r'交通').next('dd').text,
+        '物件番号': dt_idx.regex_first(r'物件番号').next('dd').text,
     })
 write_parquet(fh('parquet/extract.parquet'), results)
 ```
@@ -201,17 +201,17 @@ def extract(file_path: str) -> dict | None:
         return None
     p = wrap_parser(parser)
     # 同じ dt 群から項目を複数取るときは indexed() で text を一度だけ切り出す
-    dts = p.css('dt').indexed()
+    dt_idx = p.css('dt').indexed()
     return {
         'URL': p.url,
         'file_name': Path(file_path).name,
         '教室名': p.css_first('h1 .text02').text,
         '住所': p.css_first('.item .mapText').text,
-        '所在地': dts.grep_first(r'所在地').next('dd').text,
-        '交通': dts.grep_first(r'交通').next('dd').text,
-        '価格': dts.grep_first(r'価格').next('dd').text,
-        '設備・条件': dts.grep_first(r'設備').next('dd').text,
-        '備考': dts.grep_first(r'備考').next('dd').text,
+        '所在地': dt_idx.regex_first(r'所在地').next('dd').text,
+        '交通': dt_idx.regex_first(r'交通').next('dd').text,
+        '価格': dt_idx.regex_first(r'価格').next('dd').text,
+        '設備・条件': dt_idx.regex_first(r'設備').next('dd').text,
+        '備考': dt_idx.regex_first(r'備考').next('dd').text,
     }
 
 if __name__ == '__main__':

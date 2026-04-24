@@ -1,5 +1,14 @@
 from .scwrap import (
+    ElementHandle,
+    ElementTextIndex,
+    NodeTextIndex,
     Page,
+    WrappedElement,
+    WrappedElementGroup,
+    WrappedNode,
+    WrappedNodeGroup,
+    WrappedPage,
+    WrappedParser,
     wrap_node,
     wrap_node_group,
     wrap_page,
@@ -7,7 +16,16 @@ from .scwrap import (
 )
 
 __all__ = [
+    "ElementHandle",
+    "ElementTextIndex",
+    "NodeTextIndex",
     "Page",
+    "WrappedElement",
+    "WrappedElementGroup",
+    "WrappedNode",
+    "WrappedNodeGroup",
+    "WrappedPage",
+    "WrappedParser",
     "wrap_node",
     "wrap_node_group",
     "wrap_page",
