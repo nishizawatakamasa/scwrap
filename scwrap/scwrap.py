@@ -317,7 +317,7 @@ class WrappedNodeGroup:
         return [n.attr(attr_name) for n in self._nodes]
 
 
-class ElementTextIndex:
+class ElementTextIndex(_PageScoped):
     def __init__(self, page: Page, pairs: list[tuple[str, WrappedElement]]) -> None:
         self._page = page
         self._pairs = pairs
@@ -327,12 +327,12 @@ class ElementTextIndex:
         for text, e in self._pairs:
             if prog.search(text):
                 return e
-        return WrappedElement(self._page, None)
+        return self.wrap_element(None)
 
     def regex(self, pattern: str) -> WrappedElementGroup:
         prog = re.compile(pattern)
         filtered = [e for text, e in self._pairs if prog.search(text)]
-        return WrappedElementGroup(self._page, filtered)
+        return self.wrap_element_group(filtered)
 
 
 class NodeTextIndex:
